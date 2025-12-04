@@ -250,14 +250,97 @@ export function acceptTutoringRequest(request) {
   const existing = requests.find(
     (r) => r.id === request.id && r.tutorId === request.tutorId
   );
+  
+  // Generate a consistent meet link for this session if not already present
+  let meetLink = request.meetLink;
+  if (!meetLink) {
+    meetLink = generateMeetLinkFromRequestId(request.id);
+  }
+  
   if (!existing) {
     requests.push({
       ...request,
       acceptedAt: new Date().toISOString(),
+      meetLink: meetLink, // Store meet link with accepted request
     });
     saveAcceptedRequests(requests);
+  } else {
+    // Update existing request with meet link if not present
+    if (!existing.meetLink) {
+      existing.meetLink = meetLink;
+      saveAcceptedRequests(requests);
+    } else {
+      // Use existing meet link if already present
+      meetLink = existing.meetLink;
+    }
   }
+  
+  // Also update the learner's request status in app_learner_requests
+  if (typeof window !== "undefined") {
+    try {
+      const learnerRaw = window.localStorage.getItem("app_learner_requests");
+      if (learnerRaw) {
+        const learnerRequests = JSON.parse(learnerRaw);
+        const learnerRequestIndex = learnerRequests.findIndex((r) => r.id === request.id);
+        if (learnerRequestIndex !== -1) {
+          learnerRequests[learnerRequestIndex].status = "accepted";
+          // Preserve all fields from the original request and add meet link
+          learnerRequests[learnerRequestIndex] = {
+            ...learnerRequests[learnerRequestIndex],
+            ...request,
+            status: "accepted",
+            meetLink: meetLink, // Store the same meet link for learner
+          };
+          window.localStorage.setItem("app_learner_requests", JSON.stringify(learnerRequests));
+        }
+      }
+    } catch (e) {
+      console.error("Failed to update learner request status", e);
+    }
+  }
+  
   return requests;
+}
+
+function generateMeetLinkFromRequestId(requestId) {
+  // Generate a consistent meet code from request ID
+  // This ensures the same session always gets the same code
+  const chars = "abcdefghijklmnopqrstuvwxyz";
+  // Use request ID as seed for consistent code generation
+  let hash = 0;
+  for (let i = 0; i < requestId.length; i++) {
+    hash = ((hash << 5) - hash) + requestId.charCodeAt(i);
+    hash = hash & hash; // Convert to 32bit integer
+  }
+  
+  // Generate code based on hash (format: abc-defg-hij)
+  const parts = [
+    Array.from({ length: 3 }, (_, i) => chars[Math.abs(hash + i) % chars.length]).join(""),
+    Array.from({ length: 4 }, (_, i) => chars[Math.abs(hash + i + 3) % chars.length]).join(""),
+    Array.from({ length: 3 }, (_, i) => chars[Math.abs(hash + i + 7) % chars.length]).join(""),
+  ];
+  const meetCode = parts.join("-");
+  return `https://meet.google.com/${meetCode}`;
+}
+
+export function getAcceptedRequestsForLearner(learnerId) {
+  if (typeof window === "undefined") {
+    return [];
+  }
+  try {
+    const raw = window.localStorage.getItem("app_learner_requests");
+    if (!raw) {
+      return [];
+    }
+    const allRequests = JSON.parse(raw);
+    const accepted = allRequests.filter(
+      (r) => r.studentId === learnerId && r.status === "accepted"
+    );
+    return accepted;
+  } catch (e) {
+    console.error("Failed to load accepted requests for learner", e);
+    return [];
+  }
 }
 
 export function getMessages(tutorId) {

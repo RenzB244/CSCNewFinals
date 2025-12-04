@@ -95,7 +95,7 @@
 </template>
 
 <script>
-import { getCurrentUser } from "@/helpers/storage";
+import { getCurrentUser, getAcceptedRequestsForLearner } from "@/helpers/storage";
 
 export default {
   name: "LearnerSchedule",
@@ -198,6 +198,10 @@ export default {
       this.loadSessions();
     },
   },
+  activated() {
+    // Refresh when component is activated (e.g., when navigating back to this page)
+    this.loadSessions();
+  },
   methods: {
     loadSessions() {
       const currentUser = getCurrentUser();
@@ -206,23 +210,43 @@ export default {
       }
 
       // Get all accepted requests for this learner
-      const acceptedRequests = this.getAcceptedRequestsForLearner(currentUser.id);
+      const acceptedRequests = getAcceptedRequestsForLearner(currentUser.id);
       
       // Convert accepted requests to sessions
       this.sessions = acceptedRequests.map((request) => {
         // Create dateTime from preferred date and time, or use a default future date
         let dateTime;
-        if (request.preferredDate) {
-          const dateStr = request.preferredDate;
-          const timeStr = request.preferredTime || "14:00";
-          dateTime = new Date(`${dateStr}T${timeStr}`);
+        if (request.preferredDate && request.preferredDate.trim()) {
+          const dateStr = request.preferredDate.trim();
+          const timeStr = (request.preferredTime || "14:00").trim();
           
-          // If the date is in the past, set it to tomorrow at the same time
-          if (dateTime < new Date()) {
+          // Try to parse the date - handle both YYYY-MM-DD and other formats
+          try {
+            // If dateStr is already in ISO format or YYYY-MM-DD, use it directly
+            if (dateStr.includes("T")) {
+              dateTime = new Date(dateStr);
+            } else {
+              // Format: YYYY-MM-DD
+              dateTime = new Date(`${dateStr}T${timeStr}`);
+            }
+            
+            // Validate the date
+            if (isNaN(dateTime.getTime())) {
+              throw new Error("Invalid date");
+            }
+            
+            // If the date is in the past, set it to tomorrow at the same time
+            if (dateTime < new Date()) {
+              dateTime = new Date();
+              dateTime.setDate(dateTime.getDate() + 1);
+              const [hours, minutes] = timeStr.split(":");
+              dateTime.setHours(parseInt(hours) || 14, parseInt(minutes) || 0, 0, 0);
+            }
+          } catch (e) {
+            // If parsing fails, default to 2 days from now
             dateTime = new Date();
-            dateTime.setDate(dateTime.getDate() + 1);
-            const [hours, minutes] = timeStr.split(":");
-            dateTime.setHours(parseInt(hours) || 14, parseInt(minutes) || 0, 0, 0);
+            dateTime.setDate(dateTime.getDate() + 2);
+            dateTime.setHours(14, 0, 0, 0);
           }
         } else {
           // Default to 2 days from now at 2 PM
@@ -239,28 +263,12 @@ export default {
           dateTime: dateTime,
           requestId: request.id,
           notes: request.notes || "",
+          meetLink: request.meetLink || null, // Include meetLink from request
         };
       });
 
       // Sort sessions by date
       this.sessions.sort((a, b) => new Date(a.dateTime) - new Date(b.dateTime));
-    },
-    getAcceptedRequestsForLearner(learnerId) {
-      if (typeof window === "undefined") {
-        return [];
-      }
-      try {
-        const raw = window.localStorage.getItem("app_learner_requests");
-        if (!raw) {
-          return [];
-        }
-        const allRequests = JSON.parse(raw);
-        return allRequests.filter(
-          (r) => r.studentId === learnerId && r.status === "accepted"
-        );
-      } catch (e) {
-        return [];
-      }
     },
     formatDateTime(dateTime) {
       const date = new Date(dateTime);
@@ -337,21 +345,71 @@ export default {
       });
     },
     joinSession(session) {
-      // Generate or use a Google Meet link
-      // For now, we'll use a placeholder Google Meet link
-      // In a real app, this would be stored with the session
-      const meetLink = session.meetLink || `https://meet.google.com/${this.generateMeetCode()}`;
+      // Generate or use the stored Google Meet link
+      // The same link should be used for both tutor and learner
+      const meetLink = session.meetLink || this.getOrCreateMeetLink(session);
       window.open(meetLink, "_blank");
     },
-    generateMeetCode() {
-      // Generate a random meet code (format: abc-defg-hij)
+    getOrCreateMeetLink(session) {
+      // Generate a consistent meet link based on session ID
+      // This ensures the same session always has the same link
+      const meetCode = this.generateMeetCodeFromSessionId(session.id);
+      const meetLink = `https://meet.google.com/${meetCode}`;
+      
+      // Store the meet link with the request so both tutor and learner can access it
+      this.saveMeetLinkToRequest(session.id, meetLink);
+      
+      return meetLink;
+    },
+    generateMeetCodeFromSessionId(sessionId) {
+      // Generate a consistent meet code from session ID
+      // This ensures the same session always gets the same code
       const chars = "abcdefghijklmnopqrstuvwxyz";
+      // Use session ID as seed for consistent code generation
+      let hash = 0;
+      for (let i = 0; i < sessionId.length; i++) {
+        hash = ((hash << 5) - hash) + sessionId.charCodeAt(i);
+        hash = hash & hash; // Convert to 32bit integer
+      }
+      
+      // Generate code based on hash
       const parts = [
-        Array.from({ length: 3 }, () => chars[Math.floor(Math.random() * chars.length)]).join(""),
-        Array.from({ length: 4 }, () => chars[Math.floor(Math.random() * chars.length)]).join(""),
-        Array.from({ length: 3 }, () => chars[Math.floor(Math.random() * chars.length)]).join(""),
+        Array.from({ length: 3 }, (_, i) => chars[Math.abs(hash + i) % chars.length]).join(""),
+        Array.from({ length: 4 }, (_, i) => chars[Math.abs(hash + i + 3) % chars.length]).join(""),
+        Array.from({ length: 3 }, (_, i) => chars[Math.abs(hash + i + 7) % chars.length]).join(""),
       ];
       return parts.join("-");
+    },
+    saveMeetLinkToRequest(requestId, meetLink) {
+      // Save meet link to both app_learner_requests and app_accepted_requests
+      if (typeof window === "undefined") {
+        return;
+      }
+      try {
+        // Update in learner requests
+        const learnerRaw = window.localStorage.getItem("app_learner_requests");
+        if (learnerRaw) {
+          const learnerRequests = JSON.parse(learnerRaw);
+          const requestIndex = learnerRequests.findIndex((r) => r.id === requestId);
+          if (requestIndex !== -1) {
+            learnerRequests[requestIndex].meetLink = meetLink;
+            window.localStorage.setItem("app_learner_requests", JSON.stringify(learnerRequests));
+          }
+        }
+        
+        // Update in accepted requests
+        const acceptedRaw = window.localStorage.getItem("app_accepted_requests");
+        if (acceptedRaw) {
+          const acceptedRequests = JSON.parse(acceptedRaw);
+          const requestIndex = acceptedRequests.findIndex((r) => r.id === requestId);
+          if (requestIndex !== -1) {
+            acceptedRequests[requestIndex].meetLink = meetLink;
+            window.localStorage.setItem("app_accepted_requests", JSON.stringify(acceptedRequests));
+          }
+        }
+      } catch (e) {
+        console.error("Failed to save meet link", e);
+      }
     },
   },
 };

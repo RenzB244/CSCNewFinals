@@ -151,7 +151,7 @@
 </template>
 
 <script>
-import { getCurrentUser } from "@/helpers/storage";
+import { getCurrentUser, getAcceptedRequestsForLearner } from "@/helpers/storage";
 
 export default {
   name: "LearnerDashboard",
@@ -192,7 +192,7 @@ export default {
     },
     loadNextSession(learnerId) {
       // Get all accepted requests for this learner
-      const acceptedRequests = this.getAcceptedRequestsForLearner(learnerId);
+      const acceptedRequests = getAcceptedRequestsForLearner(learnerId);
 
       // Convert accepted requests to sessions
       const sessions = acceptedRequests
@@ -241,7 +241,7 @@ export default {
       }
 
       // Sessions today
-      const acceptedRequests = this.getAcceptedRequestsForLearner(learnerId);
+      const acceptedRequests = getAcceptedRequestsForLearner(learnerId);
       const today = new Date();
       today.setHours(0, 0, 0, 0);
       const tomorrow = new Date(today);
@@ -311,23 +311,6 @@ export default {
           title: "Welcome!",
           message: "Start by finding a tutor that matches your learning needs.",
         });
-      }
-    },
-    getAcceptedRequestsForLearner(learnerId) {
-      if (typeof window === "undefined") {
-        return [];
-      }
-      try {
-        const raw = window.localStorage.getItem("app_learner_requests");
-        if (!raw) {
-          return [];
-        }
-        const allRequests = JSON.parse(raw);
-        return allRequests.filter(
-          (r) => r.studentId === learnerId && r.status === "accepted"
-        );
-      } catch (e) {
-        return [];
       }
     },
     formatDateTime(dateTime) {

@@ -124,7 +124,7 @@
 </template>
 
 <script>
-import { getCurrentUser, getLearnerMessages, addMessage, sendMessageToAdmin } from "@/helpers/storage";
+import { getCurrentUser, getLearnerMessages, addMessage, sendMessageToAdmin, getAcceptedRequestsForLearner } from "@/helpers/storage";
 
 export default {
   name: "LearnerMessages",
@@ -157,7 +157,7 @@ export default {
       }
 
       // Get all accepted requests for this learner
-      const acceptedRequests = this.getAcceptedRequestsForLearner(currentUser.id);
+      const acceptedRequests = getAcceptedRequestsForLearner(currentUser.id);
       
       // Get messages for these conversations
       const allMessages = getLearnerMessages(currentUser.id);
@@ -183,24 +183,6 @@ export default {
             : new Date(request.date),
         };
       });
-    },
-    getAcceptedRequestsForLearner(learnerId) {
-      // Get requests that have been accepted
-      if (typeof window === "undefined") {
-        return [];
-      }
-      try {
-        const raw = window.localStorage.getItem("app_learner_requests");
-        if (!raw) {
-          return [];
-        }
-        const allRequests = JSON.parse(raw);
-        return allRequests.filter(
-          (r) => r.studentId === learnerId && r.status === "accepted"
-        );
-      } catch (e) {
-        return [];
-      }
     },
     loadChatMessages() {
       if (!this.selectedConversation || !this.currentUser) {

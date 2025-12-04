@@ -139,11 +139,21 @@ export default {
       if (request) {
         const currentUser = getCurrentUser();
         if (currentUser) {
-          acceptTutoringRequest({
+          // Ensure request has all necessary fields before accepting
+          const requestToAccept = {
             ...request,
+            id: request.id, // Ensure ID is preserved
             tutorId: currentUser.id,
             status: "accepted",
-          });
+            studentId: request.studentId,
+            studentName: request.studentName,
+            tutorName: request.tutorName || currentUser.name,
+            subject: request.subject,
+            preferredDate: request.preferredDate,
+            preferredTime: request.preferredTime,
+            notes: request.notes,
+          };
+          acceptTutoringRequest(requestToAccept);
         }
         this.updateRequestStatus(id, "accepted");
         this.loadRequests();
