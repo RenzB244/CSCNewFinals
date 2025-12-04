@@ -220,33 +220,65 @@ export default {
           const dateStr = request.preferredDate.trim();
           const timeStr = (request.preferredTime || "14:00").trim();
           
-          // Try to parse the date - handle both YYYY-MM-DD and other formats
+          // Try to parse the date - handle YYYY-MM-DD format from date input
           try {
-            // If dateStr is already in ISO format or YYYY-MM-DD, use it directly
-            if (dateStr.includes("T")) {
-              dateTime = new Date(dateStr);
-            } else {
-              // Format: YYYY-MM-DD
-              dateTime = new Date(`${dateStr}T${timeStr}`);
+            // Date input returns YYYY-MM-DD format
+            // Parse it properly to avoid timezone issues
+            const [year, month, day] = dateStr.split("-").map(Number);
+            const [hours, minutes] = timeStr.split(":").map(Number);
+            
+            // Validate parsed values
+            if (isNaN(year) || isNaN(month) || isNaN(day)) {
+              throw new Error("Invalid date format");
             }
+            
+            // Create date in local timezone
+            dateTime = new Date(year, month - 1, day, hours || 14, minutes || 0, 0, 0);
             
             // Validate the date
             if (isNaN(dateTime.getTime())) {
               throw new Error("Invalid date");
             }
             
-            // If the date is in the past, set it to tomorrow at the same time
-            if (dateTime < new Date()) {
+            // Only adjust if the DATE is in the past (not just the time)
+            // This allows same-day bookings even if the time has passed
+            const now = new Date();
+            const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+            const sessionDate = new Date(year, month - 1, day);
+            
+            // Only move to tomorrow if the date itself is in the past (not same day)
+            if (sessionDate < today) {
               dateTime = new Date();
               dateTime.setDate(dateTime.getDate() + 1);
-              const [hours, minutes] = timeStr.split(":");
-              dateTime.setHours(parseInt(hours) || 14, parseInt(minutes) || 0, 0, 0);
+              dateTime.setHours(hours || 14, minutes || 0, 0, 0);
             }
           } catch (e) {
-            // If parsing fails, default to 2 days from now
-            dateTime = new Date();
-            dateTime.setDate(dateTime.getDate() + 2);
-            dateTime.setHours(14, 0, 0, 0);
+            // If parsing fails, try alternative format or default
+            try {
+              // Try ISO format parsing
+              if (dateStr.includes("T")) {
+                dateTime = new Date(dateStr);
+              } else {
+                dateTime = new Date(`${dateStr}T${timeStr}`);
+              }
+              
+              if (isNaN(dateTime.getTime())) {
+                throw new Error("Invalid date");
+              }
+              
+              // If the date is in the past, set it to tomorrow at the same time
+              if (dateTime < new Date()) {
+                dateTime = new Date();
+                dateTime.setDate(dateTime.getDate() + 1);
+                const [h, m] = timeStr.split(":").map(Number);
+                dateTime.setHours(h || 14, m || 0, 0, 0);
+              }
+            } catch (e2) {
+              // If all parsing fails, default to 2 days from now
+              dateTime = new Date();
+              dateTime.setDate(dateTime.getDate() + 2);
+              dateTime.setHours(14, 0, 0, 0);
+            }
           }
         } else {
           // Default to 2 days from now at 2 PM

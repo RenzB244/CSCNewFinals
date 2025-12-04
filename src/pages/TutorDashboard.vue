@@ -225,10 +225,32 @@ export default {
       const sessions = acceptedRequests
         .map((request) => {
           let dateTime;
-          if (request.preferredDate) {
-            const dateStr = request.preferredDate;
-            const timeStr = request.preferredTime || "14:00";
-            dateTime = new Date(`${dateStr}T${timeStr}`);
+          if (request.preferredDate && request.preferredDate.trim()) {
+            const dateStr = request.preferredDate.trim();
+            const timeStr = (request.preferredTime || "14:00").trim();
+            
+            // Parse date properly - handle YYYY-MM-DD format from date input
+            try {
+              const [year, month, day] = dateStr.split("-").map(Number);
+              const [hours, minutes] = timeStr.split(":").map(Number);
+              
+              if (!isNaN(year) && !isNaN(month) && !isNaN(day)) {
+                dateTime = new Date(year, month - 1, day, hours || 14, minutes || 0, 0, 0);
+              } else {
+                throw new Error("Invalid date");
+              }
+            } catch (e) {
+              // Fallback to ISO parsing
+              try {
+                dateTime = dateStr.includes("T") 
+                  ? new Date(dateStr) 
+                  : new Date(`${dateStr}T${timeStr}`);
+              } catch (e2) {
+                dateTime = new Date();
+                dateTime.setDate(dateTime.getDate() + 1);
+                dateTime.setHours(14, 0, 0, 0);
+              }
+            }
           } else {
             dateTime = new Date();
             dateTime.setDate(dateTime.getDate() + 1);
