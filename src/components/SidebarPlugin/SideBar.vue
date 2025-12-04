@@ -5,17 +5,17 @@
     :data-image="sidebarBackgroundImage"
     :style="sidebarStyle"
   >
-    <div class="logo">
-      <a href="#" class="simple-text logo-mini">
-        <div class="logo-img">
-          <img :src="imgLogo" alt="" />
+    <div class="logo" style="text-align: center;">
+      <a href="#" class="simple-text logo-mini" style="display: block; margin: 0 auto; float: none;">
+        <div class="logo-img" style="width: 80px; height: 80px; margin: 0 auto;">
+          <img :src="imgLogo" alt="" style="width: 100%; height: 100%; object-fit: contain;" />
         </div>
       </a>
 
       <a
-        href="https://www.creative-tim.com/product/vue-material-dashboard"
-        target="_blank"
+        href="#"
         class="simple-text logo-normal"
+        style="text-decoration: none; text-align: center; display: block; width: 100%; margin-top: 10px;"
       >
         {{ title }}
       </a>
@@ -55,7 +55,7 @@ export default {
     },
     imgLogo: {
       type: String,
-      default: require("@/assets/img/vue-logo.png"),
+      default: require("@/assets/img/csu-logo.png"),
     },
     sidebarItemColor: {
       type: String,
@@ -88,7 +88,49 @@ export default {
   },
 };
 </script>
-<style>
+<style scoped>
+.logo {
+  text-align: center !important;
+  padding: 20px 0 !important;
+}
+
+.logo-mini {
+  float: none !important;
+  display: block !important;
+  margin: 0 auto !important;
+  width: auto !important;
+}
+
+.logo-img {
+  width: 80px !important;
+  height: 80px !important;
+  margin: 0 auto !important;
+  display: block !important;
+  background: #fff !important;
+  border-radius: 50% !important;
+  padding: 8px !important;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2) !important;
+}
+
+.logo-img img {
+  width: 100% !important;
+  height: 100% !important;
+  object-fit: contain !important;
+  display: block !important;
+}
+
+.logo-normal {
+  font-size: 14px !important;
+  font-weight: bold !important;
+  color: #fff !important;
+  text-align: center !important;
+  line-height: 1.4 !important;
+  display: block !important;
+  width: 100% !important;
+  margin: 10px auto 0 !important;
+  padding: 0 !important;
+}
+
 @media screen and (min-width: 991px) {
   .nav-mobile-menu {
     display: none;

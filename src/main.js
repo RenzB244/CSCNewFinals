@@ -14,13 +14,13 @@
 
 // The Vue build version to load with the `import` command
 // (runtime-only or standalone) has been set in webpack.base.conf with an alias.
-import AdminDashboard from '@/pages/AdminDashboard.vue'
 import Vue from "vue";
 import VueRouter from "vue-router";
 import App from "./App";
 
 // router setup
 import routes from "./routes/routes";
+import { getCurrentUser } from "./helpers/storage";
 
 // Plugins
 import GlobalComponents from "./globalComponents";
@@ -36,6 +36,67 @@ import Chartist from "chartist";
 const router = new VueRouter({
   routes, // short for routes: routes
   linkExactActiveClass: "nav-item active",
+});
+
+router.beforeEach((to, from, next) => {
+  const publicPages = ["/login", "/signup"];
+  const authRequired = !publicPages.includes(to.path);
+  const currentUser = getCurrentUser();
+
+  if (authRequired && !currentUser) {
+    return next("/login");
+  }
+
+  if (to.path.startsWith("/admin") && (!currentUser || currentUser.role !== "admin")) {
+    // Redirect to appropriate dashboard based on role
+    if (currentUser && currentUser.role === "tutor") {
+      return next("/tutor-dashboard");
+    }
+    if (currentUser && currentUser.role === "user") {
+      return next("/learner-dashboard");
+    }
+    return next("/login");
+  }
+
+  // Redirect tutors from regular dashboard to tutor dashboard
+  if (to.path === "/dashboard" && currentUser) {
+    if (currentUser.role === "tutor") {
+      return next("/tutor-dashboard");
+    } else if (currentUser.role === "user") {
+      return next("/learner-dashboard");
+    }
+  }
+
+  // Redirect regular users from tutor routes to learner dashboard
+  if (
+    to.path.startsWith("/tutor-") &&
+    currentUser &&
+    currentUser.role !== "tutor"
+  ) {
+    return next("/learner-dashboard");
+  }
+
+  // Redirect tutors from learner routes to tutor dashboard
+  if (
+    to.path.startsWith("/learner-") &&
+    currentUser &&
+    currentUser.role === "tutor"
+  ) {
+    return next("/tutor-dashboard");
+  }
+
+  // Block pending tutors from accessing tutor features (except home)
+  if (
+    currentUser &&
+    currentUser.role === "tutor" &&
+    currentUser.status !== "approved" &&
+    to.path !== "/tutor-dashboard" &&
+    to.path.startsWith("/tutor-")
+  ) {
+    return next("/tutor-dashboard");
+  }
+
+  next();
 });
 
 Vue.prototype.$Chartist = Chartist;

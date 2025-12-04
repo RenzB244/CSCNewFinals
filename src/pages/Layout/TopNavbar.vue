@@ -3,6 +3,7 @@
     <div class="md-toolbar-row">
       <div class="md-toolbar-section-start">
         <h3 class="md-title">{{ $route.name }}</h3>
+        <span v-if="welcomeMessage" class="welcome-message">{{ welcomeMessage }}</span>
       </div>
       <div class="md-toolbar-section-end">
         <md-button
@@ -88,6 +89,8 @@
 </template>
 
 <script>
+import { getCurrentUser } from "@/helpers/storage";
+
 export default {
   data() {
     return {
@@ -104,6 +107,15 @@ export default {
       ],
     };
   },
+  computed: {
+    welcomeMessage() {
+      const user = getCurrentUser();
+      if (user) {
+        return `Welcome back, ${user.name}`;
+      }
+      return "";
+    },
+  },
   methods: {
     toggleSidebar() {
       this.$sidebar.displaySidebar(!this.$sidebar.showSidebar);
@@ -112,4 +124,10 @@ export default {
 };
 </script>
 
-<style lang="css"></style>
+<style lang="css">
+.welcome-message {
+  margin-left: 16px;
+  color: #666;
+  font-size: 14px;
+}
+</style>
